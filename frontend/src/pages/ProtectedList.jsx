@@ -15,12 +15,15 @@ export default function ProtectedList() {
     if (iucn) params.set('iucn', iucn)
     if (category) params.set('category', category)
     fetch(`/api/protected?${params}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error('Fetch failed')
+        return r.json()
+      })
       .then((data) => { setCreatures(data); setLoading(false) })
+      .catch(() => { setCreatures([]); setLoading(false) })
   }, [iucn, category])
 
   const protected_count = creatures.length
-  const sharks_threatened = creatures.filter((c) => c.category === 'shark').length
 
   return (
     <div className="protected-page">
@@ -99,8 +102,16 @@ export default function ProtectedList() {
                         ● {iucnLevel}
                       </span>
                     </td>
-                    <td className="status-denied">NO</td>
-                    <td>N/A</td>
+                    <td className={c.regulations?.some((r) => !r.harvest_legal) ? 'status-denied' : 'status-allowed'}>
+                      {c.regulations?.length > 0
+                        ? c.regulations.some((r) => !r.harvest_legal) ? 'PROHIBITED' : 'Allowed'
+                        : '—'}
+                    </td>
+                    <td>
+                      {c.regulations?.length > 0
+                        ? c.regulations.some((r) => r.permit_required) ? 'Yes' : 'No'
+                        : '—'}
+                    </td>
                   </tr>
                 )
               })}

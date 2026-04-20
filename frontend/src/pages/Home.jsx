@@ -16,15 +16,23 @@ export default function Explore() {
 
   useEffect(() => {
     setListLoading(true)
+    setSelectedId(null)
     const params = new URLSearchParams()
     if (search) params.set('q', search)
     if (category) params.set('category', category)
     fetch(`/api/creatures?${params}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error('Fetch failed')
+        return r.json()
+      })
       .then((data) => {
         setCreatures(data)
         setListLoading(false)
-        if (data.length > 0 && !selectedId) setSelectedId(data[0].id)
+        if (data.length > 0) setSelectedId(data[0].id)
+      })
+      .catch(() => {
+        setCreatures([])
+        setListLoading(false)
       })
   }, [search, category])
 
@@ -34,11 +42,19 @@ export default function Explore() {
     setDetail(null)
     setRelated([])
     Promise.all([
-      fetch(`/api/creatures/${selectedId}`).then((r) => r.json()),
-      fetch(`/api/creatures/${selectedId}/related`).then((r) => r.json()),
+      fetch(`/api/creatures/${selectedId}`).then((r) => {
+        if (!r.ok) throw new Error('Fetch failed')
+        return r.json()
+      }),
+      fetch(`/api/creatures/${selectedId}/related`).then((r) => {
+        if (!r.ok) throw new Error('Fetch failed')
+        return r.json()
+      }),
     ]).then(([d, r]) => {
       setDetail(d)
       setRelated(r)
+      setDetailLoading(false)
+    }).catch(() => {
       setDetailLoading(false)
     })
   }, [selectedId])

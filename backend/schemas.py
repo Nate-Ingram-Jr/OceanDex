@@ -67,6 +67,7 @@ class SeaCreatureSummary(BaseModel):
     max_length_cm: Optional[float]
     image_url: Optional[str]
     conservation: Optional[ConservationStatusOut]
+    regulations: List[LegalRegulationOut] = []
 
     class Config:
         from_attributes = True

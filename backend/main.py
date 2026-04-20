@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 import models
 import schemas
@@ -68,6 +68,9 @@ def protected_list(
     query = (
         db.query(models.SeaCreature)
         .join(models.ConservationStatus)
+        .options(
+            joinedload(models.SeaCreature.regulations).joinedload(models.LegalRegulation.state)
+        )
         .filter(
             models.ConservationStatus.iucn_level.in_(
                 ["Vulnerable", "Endangered", "Critically Endangered"]
