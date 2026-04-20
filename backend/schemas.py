@@ -1,0 +1,97 @@
+from pydantic import BaseModel
+from typing import Optional, List, Any
+
+
+class StateOut(BaseModel):
+    id: int
+    code: str
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+class RegionOut(BaseModel):
+    id: int
+    name: str
+    water_type: str
+    avg_depth_m: Optional[float]
+    state: StateOut
+
+    class Config:
+        from_attributes = True
+
+
+class ConservationStatusOut(BaseModel):
+    iucn_level: str
+    population_trend: str
+    threat_score: Optional[int]
+    aware_fact: str
+    last_assessed: Optional[str]
+    main_threats: Optional[List[Any]]
+    conservation_actions: Optional[List[Any]]
+
+    class Config:
+        from_attributes = True
+
+
+class RegionCreatureOut(BaseModel):
+    abundance: Optional[str]
+    best_season: Optional[str]
+    depth_notes: Optional[str]
+    region: RegionOut
+
+    class Config:
+        from_attributes = True
+
+
+class LegalRegulationOut(BaseModel):
+    id: int
+    harvest_legal: bool
+    min_size_cm: Optional[float]
+    bag_limit: Optional[int]
+    season: Optional[str]
+    permit_required: Optional[str]
+    authority: str
+    state: StateOut
+
+    class Config:
+        from_attributes = True
+
+
+class SeaCreatureSummary(BaseModel):
+    id: int
+    common_name: str
+    scientific_name: str
+    category: str
+    max_length_cm: Optional[float]
+    image_url: Optional[str]
+    conservation: Optional[ConservationStatusOut]
+
+    class Config:
+        from_attributes = True
+
+
+class SeaCreatureDetail(BaseModel):
+    id: int
+    common_name: str
+    scientific_name: str
+    category: str
+    max_length_cm: Optional[float]
+    depth_min_m: Optional[float]
+    depth_max_m: Optional[float]
+    weight: Optional[str]
+    diet: str
+    lifespan: Optional[str]
+    habitat: Optional[str]
+    migratory: bool
+    image_url: Optional[str]
+    about: Optional[str]
+    legal_notice: Optional[str]
+    encounter_tip: Optional[str]
+    conservation: Optional[ConservationStatusOut]
+    region_associations: List[RegionCreatureOut] = []
+    regulations: List[LegalRegulationOut] = []
+
+    class Config:
+        from_attributes = True
