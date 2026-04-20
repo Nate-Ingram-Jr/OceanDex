@@ -1,6 +1,23 @@
 import { NavLink } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 
 export default function NavBar() {
+  const [facts, setFacts] = useState([])
+  const [index, setIndex] = useState(0)
+
+  useEffect(() => {
+    fetch('http://localhost:8000/conservation-facts')
+      .then(r => r.json())
+      .then(setFacts)
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (facts.length < 30) return
+    const id = setInterval(() => setIndex(i => (i + 1) % facts.length), 4000)
+    return () => clearInterval(id)
+  }, [facts])
+
   return (
     <nav className="navbar">
       <div className="navbar-brand">
@@ -21,10 +38,12 @@ export default function NavBar() {
           ID Scanner
         </NavLink>
       </div>
-      <div className="navbar-alert">
-        <span className="alert-dot" />
-        31% of sharks endangered
-      </div>
+      {facts.length > 0 && (
+        <div className={`navbar-alert ${facts[index].sentiment}`}>
+          <span className="alert-dot" />
+          {facts[index].text}
+        </div>
+      )}
     </nav>
   )
 }

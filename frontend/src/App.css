@@ -102,19 +102,31 @@ a { text-decoration: none; color: inherit; }
   align-items: center;
   gap: 6px;
   font-size: 0.78rem;
-  color: #dc2626;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
   padding: 4px 10px;
   border-radius: 20px;
   flex-shrink: 0;
+  color: #6b7280;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.navbar-alert.negative {
+  color: #dc2626;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.navbar-alert.positive {
+  color: #16a34a;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
 }
 
 .alert-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #dc2626;
+  background: currentColor;
   display: inline-block;
   flex-shrink: 0;
 }

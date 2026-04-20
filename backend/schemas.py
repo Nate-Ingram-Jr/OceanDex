@@ -2,6 +2,11 @@ from pydantic import BaseModel
 from typing import Optional, List, Any
 
 
+class ConservationFactOut(BaseModel):
+    text: str
+    sentiment: str  # "positive" | "negative" | "neutral"
+
+
 class StateOut(BaseModel):
     id: int
     code: str

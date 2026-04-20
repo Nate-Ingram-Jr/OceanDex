@@ -59,6 +59,51 @@ def related_creatures(creature_id: int, db: Session = Depends(get_db)):
     )
 
 
+_POSITIVE_KEYWORDS = {
+    "recover", "recovered", "recovery", "successful", "success", "restored",
+    "restoration", "resilient", "thriving", "model for", "record high",
+    "measurable", "improved", "filling", "right call",
+}
+_NEGATIVE_KEYWORDS = {
+    "decline", "declined", "declining", "collapse", "collapsed", "endangered",
+    "critically", "threatened", "reduced", "catastrophic", "crisis", "near zero",
+    "near-collapse", "wiped out", "drop", "dropped", "decrease", "lost",
+    "devastating", "depleted", "disappear", "extinct",
+}
+
+
+def _classify(text: str) -> str:
+    lower = text.lower()
+    pos = any(k in lower for k in _POSITIVE_KEYWORDS)
+    neg = any(k in lower for k in _NEGATIVE_KEYWORDS)
+    if pos and not neg:
+        return "positive"
+    if neg and not pos:
+        return "negative"
+    return "neutral"
+
+
+def _first_sentence(text: str) -> str:
+    for sep in (". ", "— ", " — "):
+        idx = text.find(sep)
+        if idx != -1 and idx > 20:
+            return text[: idx + 1].strip()
+    return text[:120].rstrip() + ("…" if len(text) > 120 else "")
+
+
+@app.get("/conservation-facts", response_model=List[schemas.ConservationFactOut])
+def conservation_facts(db: Session = Depends(get_db)):
+    rows = (
+        db.query(models.ConservationStatus.aware_fact)
+        .filter(models.ConservationStatus.aware_fact.isnot(None))
+        .all()
+    )
+    return [
+        {"text": _first_sentence(r.aware_fact), "sentiment": _classify(r.aware_fact)}
+        for r in rows
+    ]
+
+
 @app.get("/protected", response_model=List[schemas.SeaCreatureSummary])
 def protected_list(
     iucn: Optional[str] = Query(None),
