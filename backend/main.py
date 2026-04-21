@@ -59,7 +59,7 @@ def related_creatures(creature_id: int, db: Session = Depends(get_db)):
     )
 
 @app.get("/creatures/{creature_id}/habitat", response_model=schemas.HabitatRangeOut)
-def get_habitat(creature_id: int, db: session = Depends(get_db)):
+def get_habitat(creature_id: int, db: Session = Depends(get_db)):
     creature = (
         db.query(models.SeaCreature)
         .options(
