@@ -1034,10 +1034,13 @@ a { text-decoration: none; color: inherit; }
 }
 
 .map-wrapper {
-  height: 600px;
+  flex: 1;
+  min-height: 0;
   border-radius: 12px;
   overflow: hidden;
   margin: 0 24px 24px;
+  display: flex;
+  align-items: stretch;
 }
 
 .map-controls {
