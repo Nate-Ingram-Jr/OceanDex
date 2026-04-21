@@ -1,29 +1,22 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { geoNaturalEarth1, geoPath, geoGraticule } from 'd3-geo'
 import { feature } from 'topojson-client'
 import worldTopo from 'world-atlas/countries-110m.json'
 
-// ── Static geometry (module-level, runs once) ───────────────────────────────
+// ── Module-level topology (never changes) ────────────────────────────────────
 
 const W = 960, H = 500
-const MIN_K = 0.8, MAX_K = 30
+const BASE_SCALE  = 153
+const MIN_ZOOM    = 0.8
+const MAX_ZOOM    = 20
 
-const projection = geoNaturalEarth1().scale(153).translate([W / 2, H / 2])
-const pathGen     = geoPath(projection)
-const SPHERE_D    = pathGen({ type: 'Sphere' })
-const GRATICULE_D = pathGen(geoGraticule()())
-const LAND_D      = pathGen(feature(worldTopo, worldTopo.objects.land))
-const BORDERS_D   = pathGen(feature(worldTopo, worldTopo.objects.countries))
+const landFeature      = feature(worldTopo, worldTopo.objects.land)
+const countriesFeature = feature(worldTopo, worldTopo.objects.countries)
+const graticuleFeature = geoGraticule()()
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
-
-function zoomStep(prev, factor, cx, cy) {
-  const newK  = clamp(prev.k * factor, MIN_K, MAX_K)
-  const ratio = newK / prev.k
-  return { k: newK, x: cx - (cx - prev.x) * ratio, y: cy - (cy - prev.y) * ratio }
-}
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -55,15 +48,16 @@ const KEYFRAMES = `
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function OceanMap() {
-  const [creatures, setCreatures]   = useState([])
-  const [selected, setSelected]     = useState(null)
+  const [creatures, setCreatures]           = useState([])
+  const [selected, setSelected]             = useState(null)
   const [activeCategory, setActiveCategory] = useState('all')
-  const [hovered, setHovered]       = useState(null)   // { pin, mapX, mapY }
-  const [tf, setTf]                 = useState({ x: 0, y: 0, k: 1 })
-  const [isDragging, setIsDragging] = useState(false)
+  const [hovered, setHovered]               = useState(null)  // { pin }
+  const [zoom, setZoom]                     = useState(1)     // scale multiplier
+  const [rot, setRot]                       = useState([0, 0]) // [λ, φ] longitude/latitude rotation
+  const [isDragging, setIsDragging]         = useState(false)
 
   const svgRef  = useRef(null)
-  const dragRef = useRef(null)   // { startCx, startCy, startTx, startTy }
+  const dragRef = useRef(null)  // { cx, cy, rot: [λ, φ] }
 
   useEffect(() => {
     fetch('/api/map-data')
@@ -72,20 +66,30 @@ export default function OceanMap() {
       .catch(() => {})
   }, [])
 
-  // ── Zoom / pan handlers ───────────────────────────────────────────────────
+  // ── Reactive projection — rebuilds when zoom or rotation changes ──────────
+  // d3 rotate([λ, φ]) takes negative values relative to what we store,
+  // so we negate: rotate([-λ, -φ]) keeps the convention "rot = center of map".
 
-  // Converts a ClientX/Y into SVG root user-unit coordinates.
-  const toSvgCoords = useCallback((cx, cy) => {
-    const r = svgRef.current.getBoundingClientRect()
-    return [(cx - r.left) / r.width * W, (cy - r.top) / r.height * H]
-  }, [])
+  const proj = useMemo(() =>
+    geoNaturalEarth1()
+      .scale(BASE_SCALE * zoom)
+      .translate([W / 2, H / 2])
+      .rotate([-rot[0], -rot[1]])
+  , [zoom, rot])
 
-  // Wheel zoom — attached imperatively so we can call preventDefault.
+  const pg       = useMemo(() => geoPath(proj), [proj])
+  const sphereD  = useMemo(() => pg({ type: 'Sphere' }), [pg])
+  const gratD    = useMemo(() => pg(graticuleFeature), [pg])
+  const landD    = useMemo(() => pg(landFeature), [pg])
+  const bordersD = useMemo(() => pg(countriesFeature), [pg])
+
+  // ── Zoom ─────────────────────────────────────────────────────────────────
+
   const handleWheel = useCallback((e) => {
     e.preventDefault()
-    const [mx, my] = toSvgCoords(e.clientX, e.clientY)
-    setTf(prev => zoomStep(prev, e.deltaY < 0 ? 1.18 : 1 / 1.18, mx, my))
-  }, [toSvgCoords])
+    setHovered(null)
+    setZoom(prev => clamp(prev * (e.deltaY < 0 ? 1.18 : 1 / 1.18), MIN_ZOOM, MAX_ZOOM))
+  }, [])
 
   useEffect(() => {
     const svg = svgRef.current
@@ -93,34 +97,40 @@ export default function OceanMap() {
     return () => svg.removeEventListener('wheel', handleWheel)
   }, [handleWheel])
 
-  // Drag pan
+  // ── Drag-to-rotate ───────────────────────────────────────────────────────
+  // Converts pixel delta to degree delta using the current projection scale.
+  // Longitude (λ) wraps naturally — no clamping needed.
+  // Latitude  (φ) is clamped to [-62, 62] to avoid polar flip.
+
   const onMouseDown = (e) => {
     if (e.button !== 0) return
-    dragRef.current = { startCx: e.clientX, startCy: e.clientY, startTx: tf.x, startTy: tf.y }
+    dragRef.current = { cx: e.clientX, cy: e.clientY, rot: [...rot] }
     setIsDragging(true)
     e.preventDefault()
   }
 
   const onMouseMove = (e) => {
     if (!dragRef.current) return
-    const r  = svgRef.current.getBoundingClientRect()
-    const dx = (e.clientX - dragRef.current.startCx) / r.width  * W
-    const dy = (e.clientY - dragRef.current.startCy) / r.height * H
-    setTf(prev => ({ ...prev, x: dragRef.current.startTx + dx, y: dragRef.current.startTy + dy }))
+    const r     = svgRef.current.getBoundingClientRect()
+    const scale = BASE_SCALE * zoom
+    // pixel → SVG user unit → degrees
+    const dx = (e.clientX - dragRef.current.cx) * W / r.width
+    const dy = (e.clientY - dragRef.current.cy) * H / r.height
+    const dλ = -dx * 180 / (scale * Math.PI)
+    const dφ =  dy * 180 / (scale * Math.PI) * 0.55   // slight vertical damping
+    setRot([
+      dragRef.current.rot[0] + dλ,
+      clamp(dragRef.current.rot[1] + dφ, -62, 62),
+    ])
   }
 
   const onMouseUp = () => { dragRef.current = null; setIsDragging(false) }
 
-  // Double-click zooms in centered on cursor
-  const onDblClick = (e) => {
-    const [mx, my] = toSvgCoords(e.clientX, e.clientY)
-    setTf(prev => zoomStep(prev, 2.5, mx, my))
-  }
+  const onDblClick = () => setZoom(prev => clamp(prev * 2.5, MIN_ZOOM, MAX_ZOOM))
 
-  // Button zoom — centered on the map
-  const zoomIn  = () => setTf(prev => zoomStep(prev, 1.5,     W / 2, H / 2))
-  const zoomOut = () => setTf(prev => zoomStep(prev, 1 / 1.5, W / 2, H / 2))
-  const reset   = () => setTf({ x: 0, y: 0, k: 1 })
+  const zoomIn  = () => setZoom(prev => clamp(prev * 1.5,     MIN_ZOOM, MAX_ZOOM))
+  const zoomOut = () => setZoom(prev => clamp(prev / 1.5,     MIN_ZOOM, MAX_ZOOM))
+  const reset   = () => { setZoom(1); setRot([0, 0]) }
 
   // ── Build pin list ────────────────────────────────────────────────────────
 
@@ -158,20 +168,16 @@ export default function OceanMap() {
     }
   })
 
-  // ── Tooltip position (root SVG coords from map coords + current tf) ───────
-
-  const tooltipPos = hovered
-    ? { sx: hovered.mapX * tf.k + tf.x, sy: hovered.mapY * tf.k + tf.y }
-    : null
-
   // ── Render ────────────────────────────────────────────────────────────────
 
-  // Stroke widths that stay visually constant as the map scales
-  const sw = (base) => Math.max(0.08, base / tf.k)
-  // Pin radius constant in screen space
-  const pinR     = 3.5 / tf.k
-  const pinRHov  = 5   / tf.k
-  const pingR    = 6   / tf.k
+  // Stroke widths scale down with zoom to keep geo lines crisp; pins stay constant
+  const sw      = (base) => Math.max(0.08, base / zoom)
+  const pinR    = 3.5
+  const pinRHov = 5
+  const pingR   = 6
+
+  // Tooltip: compute position fresh each render using current proj
+  const hovPos = hovered ? proj([hovered.pin.coords[1], hovered.pin.coords[0]]) : null
 
   return (
     <div className="ocean-map-page">
@@ -179,7 +185,7 @@ export default function OceanMap() {
 
       <div className="map-header">
         <h2>Ocean Map</h2>
-        <p>Habitat ranges across Maryland, Delaware &amp; New Jersey waters.</p>
+        <p>Drag to rotate · Scroll to zoom · Double-click to zoom in</p>
       </div>
 
       <div className="map-controls">
@@ -236,78 +242,70 @@ export default function OceanMap() {
               <stop offset="100%" stopColor="#04121f" />
             </radialGradient>
 
-            {/* Sphere mask — clips transformed content to the globe oval */}
+            {/* Sphere mask — clips all content to the globe outline */}
             <mask id="om-sphere-mask" maskUnits="userSpaceOnUse"
               x="0" y="0" width={W} height={H}>
-              <path d={SPHERE_D} fill="white" />
+              <path d={sphereD} fill="white" />
             </mask>
           </defs>
 
-          {/* Ocean background (not transformed — always fills the sphere) */}
-          <path d={SPHERE_D} fill="url(#om-ocean)" />
+          {/* Ocean fill (behind everything) */}
+          <path d={sphereD} fill="url(#om-ocean)" />
 
-          {/* All map content masked to the sphere, then zoomed/panned */}
+          {/* All geographic content clipped to the sphere */}
           <g mask="url(#om-sphere-mask)">
-            <g transform={`translate(${tf.x},${tf.y}) scale(${tf.k})`}>
+            <path d={gratD}    fill="none" stroke="#0d2e3d" strokeWidth={sw(0.4)} />
+            <path d={landD}    fill="#1a3a4a" stroke="#122a38" strokeWidth={sw(0.5)} />
+            <path d={bordersD} fill="none"    stroke="#0e2a3a" strokeWidth={sw(0.3)} />
 
-              {/* Graticule */}
-              <path d={GRATICULE_D} fill="none" stroke="#0d2e3d" strokeWidth={sw(0.4)} />
+            {/* Pins */}
+            <g style={{ pointerEvents: isDragging ? 'none' : 'auto' }}>
+              {pins.map((pin, i) => {
+                const [lat, lng] = pin.coords
+                const pos = proj([lng, lat])
+                if (!pos) return null
+                const [mapX, mapY] = pos
+                const color = CATEGORY_COLORS[pin.creature.category] || '#94a3b8'
+                const isHov = hovered?.pin === pin
 
-              {/* Land */}
-              <path d={LAND_D} fill="#1a3a4a" stroke="#122a38" strokeWidth={sw(0.5)} />
-
-              {/* Country borders */}
-              <path d={BORDERS_D} fill="none" stroke="#0e2a3a" strokeWidth={sw(0.3)} />
-
-              {/* Pins — pointer events off while dragging to avoid stray hovers */}
-              <g style={{ pointerEvents: isDragging ? 'none' : 'auto' }}>
-                {pins.map((pin, i) => {
-                  const [lat, lng] = pin.coords
-                  const pos = projection([lng, lat])
-                  if (!pos) return null
-                  const [mapX, mapY] = pos
-                  const color = CATEGORY_COLORS[pin.creature.category] || '#94a3b8'
-                  const isHov = hovered?.pin === pin
-
-                  return (
-                    <g
-                      key={`${pin.creature.id}-${i}`}
-                      transform={`translate(${mapX},${mapY})`}
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={() => setHovered({ pin, mapX, mapY })}
-                      onMouseLeave={() => setHovered(null)}
-                    >
-                      {isHov && (
-                        <circle
-                          r={pingR}
-                          fill="none"
-                          stroke={color}
-                          strokeOpacity="0.45"
-                          strokeWidth={sw(1.5)}
-                          style={{ animation: 'om-ping 1.4s ease-out infinite', transformOrigin: '0px 0px' }}
-                        />
-                      )}
+                return (
+                  <g
+                    key={`${pin.creature.id}-${i}`}
+                    transform={`translate(${mapX},${mapY})`}
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={() => setHovered({ pin })}
+                    onMouseLeave={() => setHovered(null)}
+                  >
+                    {isHov && (
                       <circle
-                        r={isHov ? pinRHov : pinR}
-                        fill={color}
-                        opacity={isHov ? 1 : 0.85}
-                        stroke={isHov ? `rgba(255,255,255,0.5)` : 'rgba(0,0,0,0.4)'}
-                        strokeWidth={sw(isHov ? 1 : 0.7)}
+                        r={pingR}
+                        fill="none"
+                        stroke={color}
+                        strokeOpacity="0.45"
+                        strokeWidth={sw(1.5)}
+                        style={{ animation: 'om-ping 1.4s ease-out infinite', transformOrigin: '0px 0px' }}
                       />
-                    </g>
-                  )
-                })}
-              </g>
+                    )}
+                    <circle
+                      r={isHov ? pinRHov : pinR}
+                      fill={color}
+                      opacity={isHov ? 1 : 0.85}
+                      stroke={isHov ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)'}
+                      strokeWidth={sw(isHov ? 1 : 0.7)}
+                    />
+                  </g>
+                )
+              })}
             </g>
           </g>
 
-          {/* Sphere outline — on top, not transformed */}
-          <path d={SPHERE_D} fill="none" stroke="#1a4a6a" strokeWidth="1" />
+          {/* Sphere outline — always on top */}
+          <path d={sphereD} fill="none" stroke="#1a4a6a" strokeWidth="1" />
 
-          {/* Tooltip — rendered in root SVG coords outside the group */}
-          {hovered && tooltipPos && (() => {
-            const { pin }  = hovered
-            const { sx, sy } = tooltipPos
+          {/* Tooltip — rendered in root SVG coords, always current via proj */}
+          {hovered && hovPos && (() => {
+            const { pin } = hovered
+            const [sx, sy] = hovPos
             const lines = [
               pin.creature.common_name,
               pin.assoc.region?.name,
