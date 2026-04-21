@@ -5,9 +5,17 @@ const IUCN_FILTERS = ['Critically Endangered', 'Endangered', 'Vulnerable']
 
 export default function ProtectedList() {
   const [creatures, setCreatures] = useState([])
+  const [stats, setStats] = useState(null)
   const [iucn, setIucn] = useState('')
   const [category, setCategory] = useState('')
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/protected-stats')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setStats(data))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -23,27 +31,33 @@ export default function ProtectedList() {
       .catch(() => { setCreatures([]); setLoading(false) })
   }, [iucn, category])
 
-  const protected_count = creatures.length
+  const statBoxes = stats
+    ? [
+        { val: stats.total_threatened,         desc: 'Threatened Species' },
+        { val: `${stats.critically_endangered}`, desc: 'Critically Endangered' },
+        { val: `${stats.pct_declining}%`,        desc: 'Population Declining' },
+        { val: `${stats.pct_sharks_threatened}%`,desc: 'Sharks Threatened' },
+        { val: `${stats.pct_rays_threatened}%`,  desc: 'Rays Threatened' },
+        { val: stats.harvest_banned,             desc: 'Harvest Prohibited' },
+      ]
+    : [
+        { val: '…', desc: 'Threatened Species' },
+        { val: '…', desc: 'Critically Endangered' },
+        { val: '…', desc: 'Population Declining' },
+        { val: '…', desc: 'Sharks Threatened' },
+        { val: '…', desc: 'Rays Threatened' },
+        { val: '…', desc: 'Harvest Prohibited' },
+      ]
 
   return (
     <div className="protected-page">
       <div className="protected-stats">
-        <div className="stat-box">
-          <p className="stat-val">{protected_count}</p>
-          <p className="stat-desc">Protected Species</p>
-        </div>
-        <div className="stat-box">
-          <p className="stat-val">31%</p>
-          <p className="stat-desc">Sharks Threatened</p>
-        </div>
-        <div className="stat-box">
-          <p className="stat-val">14</p>
-          <p className="stat-desc">US States w/ Fin Bans</p>
-        </div>
-        <div className="stat-box">
-          <p className="stat-val">CITES</p>
-          <p className="stat-desc">Int'l Framework</p>
-        </div>
+        {statBoxes.map((s, i) => (
+          <div className="stat-box" key={i}>
+            <p className="stat-val">{s.val}</p>
+            <p className="stat-desc">{s.desc}</p>
+          </div>
+        ))}
       </div>
 
       <div className="protected-filters">
@@ -53,12 +67,20 @@ export default function ProtectedList() {
             {f}
           </button>
         ))}
-        <button
-          className={`pill ${category === 'shark' ? 'active' : ''}`}
-          onClick={() => setCategory(category === 'shark' ? '' : 'shark')}
-        >
-          Sharks Only
-        </button>
+        {[
+          { value: 'fish',      label: 'Fish Only' },
+          { value: 'shark',     label: 'Sharks Only' },
+          { value: 'ray',       label: 'Rays Only' },
+          { value: 'shellfish', label: 'Shellfish Only' },
+        ].map(({ value, label }) => (
+          <button
+            key={value}
+            className={`pill ${category === value ? 'active' : ''}`}
+            onClick={() => setCategory(category === value ? '' : value)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {loading ? (

@@ -132,6 +132,56 @@ def conservation_facts(db: Session = Depends(get_db)):
     ]
 
 
+@app.get("/protected-stats", response_model=schemas.ProtectedStatsOut)
+def protected_stats(db: Session = Depends(get_db)):
+    THREATENED = ["Vulnerable", "Endangered", "Critically Endangered"]
+
+    # All threatened creatures with their conservation + category info
+    threatened = (
+        db.query(models.SeaCreature)
+        .join(models.ConservationStatus)
+        .filter(models.ConservationStatus.iucn_level.in_(THREATENED))
+        .options(joinedload(models.SeaCreature.conservation),
+                 joinedload(models.SeaCreature.regulations))
+        .all()
+    )
+
+    total = len(threatened)
+    critically_endangered = sum(
+        1 for c in threatened if c.conservation.iucn_level == "Critically Endangered"
+    )
+    declining = sum(
+        1 for c in threatened
+        if c.conservation.population_trend and "decreas" in c.conservation.population_trend.lower()
+    )
+    pct_declining = round(declining * 100 / total) if total else 0
+
+    # % of sharks that are threatened
+    all_sharks = db.query(models.SeaCreature).filter(models.SeaCreature.category == "shark").count()
+    threatened_sharks = sum(1 for c in threatened if str(c.category) == "shark")
+    pct_sharks = round(threatened_sharks * 100 / all_sharks) if all_sharks else 0
+
+    # % of rays that are threatened
+    all_rays = db.query(models.SeaCreature).filter(models.SeaCreature.category == "ray").count()
+    threatened_rays = sum(1 for c in threatened if str(c.category) == "ray")
+    pct_rays = round(threatened_rays * 100 / all_rays) if all_rays else 0
+
+    # count threatened species with at least one regulation where harvest is banned
+    harvest_banned = sum(
+        1 for c in threatened
+        if any(not r.harvest_legal for r in c.regulations)
+    )
+
+    return {
+        "total_threatened": total,
+        "critically_endangered": critically_endangered,
+        "pct_declining": pct_declining,
+        "pct_sharks_threatened": pct_sharks,
+        "pct_rays_threatened": pct_rays,
+        "harvest_banned": harvest_banned,
+    }
+
+
 @app.get("/protected", response_model=List[schemas.SeaCreatureSummary])
 def protected_list(
     iucn: Optional[str] = Query(None),

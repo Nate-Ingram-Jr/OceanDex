@@ -2,6 +2,15 @@ from pydantic import BaseModel
 from typing import Optional, List, Any
 
 
+class ProtectedStatsOut(BaseModel):
+    total_threatened: int
+    critically_endangered: int
+    pct_declining: int          # % of threatened species with declining population
+    pct_sharks_threatened: int  # % of all sharks that are threatened
+    pct_rays_threatened: int    # % of all rays that are threatened
+    harvest_banned: int         # count of threatened species where harvest is illegal
+
+
 class ConservationFactOut(BaseModel):
     text: str
     sentiment: str  # "positive" | "negative" | "neutral"
