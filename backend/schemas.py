@@ -134,6 +134,12 @@ class MapCreatureOut(BaseModel):
     class Config:
         from_attributes = True
 
+class ScanResult(BaseModel):
+    matched: bool
+    creature: Optional[SeaCreatureSummary] = None
+    inat_name: Optional[str] = None # what iNaturalist identified
+    confidence: Optional[int] = None # percentage
+
 class SeaCreatureCreate(BaseModel):
     common_name: str
     scientific_name: str

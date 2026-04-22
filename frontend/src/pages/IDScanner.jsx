@@ -6,14 +6,35 @@ export default function IDScanner() {
   const fileRef = useRef()
 
   function handleFile(e) {
-    const file = e.target.files[0]
-    if (!file) return
-    setPreview(URL.createObjectURL(file))
-    setResult({
-      name: 'Great White Shark',
-      scientific: 'Carcharodon carcharias',
-      confidence: 94,
-      iucn: 'Vulnerable',
+    const [loading, setloading] = useState(false)
+    const [error, setError] = useState(null)
+
+    async function handleFile(e) {
+      const file = e.target.files[0]
+      if (!file) return
+
+      setPreview(URL.createObjectURL(file))
+      setResult(null)
+      setError(null)
+      setLoading(true)
+
+      const formData = new FormData()
+      formData.append('image', file)
+
+      try {
+        const res = await fetch('/api/scan', {method: 'POST', body: formData}
+          if (!res.ok) throw new Error('Scan failed')
+            const data = await res.json()
+            setResult(data)
+      } catch {
+          setError('Failed to identify the creature. Please try again with a clearer photo.')
+      } finally {
+          setLoading(false)
+      }
+
+}
+        )
+    }
     })
   }
 
