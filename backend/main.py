@@ -1,7 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import File, UploadFile
-import httpx
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 import models
@@ -226,35 +224,31 @@ def protected_list(
         query = query.filter(models.SeaCreature.category == category)
     return query.order_by(models.SeaCreature.common_name).all()
 
-@app.post("/scan", response_model=schemas.ScanResult)
-async def scan_creature(image: UploadFile = File(...), db: Session = Depends(get_db)):
-    image_bytes = await image.read()
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "https://api.inaturalist.org/v1/computervision/score_image",
-            files={"file": (image.filename, image_bytes, image.content_type)},
-            timeout=15.0,
-        )
-
-    if response.status_code != 200:
-        raise HTTPException(status_code=502, detail="iNaturalist API unavailable")
-    
-    results = response.json().get("results", [])
-    if not results:
-        return {"matched": False}
-    
-    top = results[0]
-    scientific_name = top.get("taxon", {}).get("name")
-    confidence = round(top.get("combined_score", 0) * 100)
-
-    creature = (
-        db.query(models.SeaCreature)
-        .filter(models.SeaCreature.scientific_name.ilike(scientific_name))
-        .first()
-    )
-
-    if creature:
-        return {"matched": True, "creature": creature, "Confidence": confidence}
-    
-    return {"matched": False, "inat_name": scientific_name, "confidence": confidence}
+    # --- iNaturalist implementation (requires account 2+ months old with 10+ IDs) ---
+    # @app.post("/scan", response_model=schemas.ScanResult)
+    # async def scan_creature(image: UploadFile = File(...), db: Session = Depends(get_db)):
+    #     image_bytes = await image.read()
+    #     async with httpx.AsyncClient() as client:
+    #         response = await client.post(
+    #             "https://api.inaturalist.org/v1/computervision/score_image",
+    #             files={"image": (image.filename, image_bytes, image.content_type)},
+    #             headers={"Authorization": f"Bearer {os.getenv('INAT_TOKEN')}"},
+    #             timeout=15.0,
+    #         )
+    #     if response.status_code != 200:
+    #         raise HTTPException(status_code=502, detail=f"iNaturalist error {response.status_code}: {response.text}")
+    #     results = response.json().get("results", [])
+    #     if not results:
+    #         return {"matched": False}
+    #     top = results[0]
+    #     scientific_name = top.get("taxon", {}).get("name")
+    #     confidence = round(top.get("combined_score", 0) * 100)
+    #     creature = (
+    #         db.query(models.SeaCreature)
+    #         .filter(models.SeaCreature.scientific_name.ilike(scientific_name))
+    #         .first()
+    #     )
+    #     if creature:
+    #         return {"matched": True, "creature": creature, "confidence": confidence}
+    #     return {"matched": False, "inat_name": scientific_name, "confidence": confidence}
+    # --- end iNaturalist ---
