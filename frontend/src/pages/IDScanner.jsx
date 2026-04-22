@@ -3,39 +3,32 @@ import { useState, useRef } from 'react'
 export default function IDScanner() {
   const [preview, setPreview] = useState(null)
   const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
   const fileRef = useRef()
 
-  function handleFile(e) {
-    const [loading, setloading] = useState(false)
-    const [error, setError] = useState(null)
+  async function handleFile(e) {
+    const file = e.target.files[0]
+    if (!file) return
 
-    async function handleFile(e) {
-      const file = e.target.files[0]
-      if (!file) return
+    setPreview(URL.createObjectURL(file))
+    setResult(null)
+    setError(null)
+    setLoading(true)
 
-      setPreview(URL.createObjectURL(file))
-      setResult(null)
-      setError(null)
-      setLoading(true)
+    const formData = new FormData()
+    formData.append('image', file)
 
-      const formData = new FormData()
-      formData.append('image', file)
-
-      try {
-        const res = await fetch('/api/scan', {method: 'POST', body: formData}
-          if (!res.ok) throw new Error('Scan failed')
-            const data = await res.json()
-            setResult(data)
-      } catch {
-          setError('Failed to identify the creature. Please try again with a clearer photo.')
-      } finally {
-          setLoading(false)
-      }
-
-}
-        )
+    try {
+      const res = await fetch('/api/scan', { method: 'POST', body: formData })
+      if (!res.ok) throw new Error('Scan failed')
+      const data = await res.json()
+      setResult(data)
+    } catch {
+      setError('Could not identify the image. Try a clearer photo.')
+    } finally {
+      setLoading(false)
     }
-    })
   }
 
   return (
@@ -76,19 +69,31 @@ export default function IDScanner() {
         </button>
       </div>
 
-      {result && (
+      {loading && <p className="scan-status">Scanning...</p>}
+      {error && <p className="scan-error">{error}</p>}
+
+      {result && result.matched && (
         <div className="scanner-result">
           <p className="result-label">IDENTIFICATION RESULT</p>
           <div className="result-card">
             <div className="result-img-placeholder">Detected</div>
             <div className="result-info">
-              <h3>{result.name}</h3>
-              <p className="result-sci">{result.scientific}</p>
+              <h3>{result.creature.common_name}</h3>
+              <p className="result-sci">{result.creature.scientific_name}</p>
               <span className="result-confidence">{result.confidence}% confidence</span>
-              <span className="result-iucn">■ {result.iucn}</span>
+              <span className="result-iucn">■ {result.creature.conservation?.iucn_level}</span>
               <button className="result-link">Tap to view full profile →</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {result && !result.matched && (
+        <div className="scanner-result">
+          <p className="result-label">NO MATCH FOUND</p>
+          {result.inat_name && (
+            <p>Closest identification: <em>{result.inat_name}</em> ({result.confidence}% confidence) — not in OceanDex yet.</p>
+          )}
         </div>
       )}
 
