@@ -133,3 +133,37 @@ class MapCreatureOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class SeaCreatureCreate(BaseModel):
+    common_name: str
+    scientific_name: str
+    category: str
+    max_length_cm: Optional[float]
+    depth_min_m: Optional[float]
+    depth_max_m: Optional[float]
+    weight: Optional[str]
+    diet: str
+    lifespan: Optional[str]
+    habitat: Optional[str]
+    migratory: bool
+    image_url: Optional[str]
+    about: Optional[str]
+    legal_notice: Optional[str]
+    encounter_tip: Optional[str]
+
+class SeaCreatureUpdate(BaseModel):
+    common_name: Optional[str]
+    scientific_name: Optional[str]
+    category: Optional[str]
+    max_length_cm: Optional[float]
+    depth_min_m: Optional[float]
+    depth_max_m: Optional[float]
+    weight: Optional[str]
+    diet: Optional[str]
+    lifespan: Optional[str]
+    habitat: Optional[str]
+    migratory: Optional[bool]
+    image_url: Optional[str]
+    about: Optional[str]
+    legal_notice: Optional[str]
+    encounter_tip: Optional[str]

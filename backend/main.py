@@ -42,6 +42,24 @@ def get_creature(creature_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Species not found")
     return creature
 
+@app.post("/creatures", response_model=schemas.SeaCreatureDetail, status_code=201)
+def create_creature(body: schemas.SeaCreatureCreate, db: Session = Depends(get_db)):
+        creature = models.SeaCreature(**body.model_dump())
+        db.add(creature)
+        db.commit()
+        db.refresh(creature)
+        return creature
+
+@app.patch("/creatures/{creature_id}", response_model=schemas.SeaCreatureDetail)
+def update_creature(creature_id: int, body: schemas.SeaCreatureUpdate, db: Session = Depends(get_db)):
+    creature = db.query(models.SeaCreature).filter(models.SeaCreature.id == creature_id).first()
+    if not creature:
+        raise HTTPException(status_code=404, detail="Species not found")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(creature, field, value)
+    db.commit()
+    db.refresh(creature)
+    return creature
 
 @app.get("/creatures/{creature_id}/related", response_model=List[schemas.SeaCreatureSummary])
 def related_creatures(creature_id: int, db: Session = Depends(get_db)):
