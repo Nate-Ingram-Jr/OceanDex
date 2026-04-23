@@ -200,6 +200,26 @@ a { text-decoration: none; color: inherit; }
 .pill:hover { border-color: var(--blue-light); color: var(--blue); }
 .pill.active { background: var(--ocean); border-color: var(--blue-light); color: var(--blue-light); }
 
+.state-select {
+  width: 100%;
+  padding: 8px 12px;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.state-select:focus {
+  border-color: var(--blue-light);
+  background: var(--gray-100);
+  box-shadow: 0 0 0 3px rgba(91,200,245,0.12);
+}
+
 .species-list {
   overflow-y: auto;
   flex: 1;
