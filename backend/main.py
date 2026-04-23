@@ -22,6 +22,7 @@ app.add_middleware(
 def list_creatures(
     q: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
+    state_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
 ):
     query = db.query(models.SeaCreature)
@@ -32,8 +33,19 @@ def list_creatures(
         )
     if category:
         query = query.filter(models.SeaCreature.category == category)
+    if state_id:
+        query = (
+            query
+            .join(models.SeaCreature.region_associations)
+            .join(models.RegionCreature.region)
+            .filter(models.Region.state_id == state_id)
+            .distinct()
+        )
     return query.order_by(models.SeaCreature.common_name).all()
 
+@app.get("/states", response_model=List[schemas.StateOut])
+def list_states(db: Session = Depends(get_db)):
+    return db.query(models.State).order_by(models.State.name).all()
 
 @app.get("/creatures/{creature_id}", response_model=schemas.SeaCreatureDetail)
 def get_creature(creature_id: int, db: Session = Depends(get_db)):
