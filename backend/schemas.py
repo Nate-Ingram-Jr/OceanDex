@@ -140,36 +140,59 @@ class ScanResult(BaseModel):
     inat_name: Optional[str] = None # what iNaturalist identified
     confidence: Optional[int] = None # percentage
 
+class ConservationStatusCreate(BaseModel):
+    iucn_level: str
+    population_trend: str
+    threat_score: Optional[int] = None
+    aware_fact: str
+    last_assessed: Optional[str] = None
+    main_threats: Optional[List[Any]] = None
+    conservation_actions: Optional[List[Any]] = None
+
+
+class ConservationStatusUpdate(BaseModel):
+    iucn_level: Optional[str] = None
+    population_trend: Optional[str] = None
+    threat_score: Optional[int] = None
+    aware_fact: Optional[str] = None
+    last_assessed: Optional[str] = None
+    main_threats: Optional[List[Any]] = None
+    conservation_actions: Optional[List[Any]] = None
+
+
 class SeaCreatureCreate(BaseModel):
     common_name: str
     scientific_name: str
     category: str
-    max_length_cm: Optional[float]
-    depth_min_m: Optional[float]
-    depth_max_m: Optional[float]
-    weight: Optional[str]
+    max_length_cm: Optional[float] = None
+    depth_min_m: Optional[float] = None
+    depth_max_m: Optional[float] = None
+    weight: Optional[str] = None
     diet: str
-    lifespan: Optional[str]
-    habitat: Optional[str]
+    lifespan: Optional[str] = None
+    habitat: Optional[str] = None
     migratory: bool
-    image_url: Optional[str]
-    about: Optional[str]
-    legal_notice: Optional[str]
-    encounter_tip: Optional[str]
+    image_url: Optional[str] = None
+    about: Optional[str] = None
+    legal_notice: Optional[str] = None
+    encounter_tip: Optional[str] = None
+    conservation: Optional[ConservationStatusCreate] = None
+
 
 class SeaCreatureUpdate(BaseModel):
-    common_name: Optional[str]
-    scientific_name: Optional[str]
-    category: Optional[str]
-    max_length_cm: Optional[float]
-    depth_min_m: Optional[float]
-    depth_max_m: Optional[float]
-    weight: Optional[str]
-    diet: Optional[str]
-    lifespan: Optional[str]
-    habitat: Optional[str]
-    migratory: Optional[bool]
-    image_url: Optional[str]
-    about: Optional[str]
-    legal_notice: Optional[str]
-    encounter_tip: Optional[str]
+    common_name: Optional[str] = None
+    scientific_name: Optional[str] = None
+    category: Optional[str] = None
+    max_length_cm: Optional[float] = None
+    depth_min_m: Optional[float] = None
+    depth_max_m: Optional[float] = None
+    weight: Optional[str] = None
+    diet: Optional[str] = None
+    lifespan: Optional[str] = None
+    habitat: Optional[str] = None
+    migratory: Optional[bool] = None
+    image_url: Optional[str] = None
+    about: Optional[str] = None
+    legal_notice: Optional[str] = None
+    encounter_tip: Optional[str] = None
+    conservation: Optional[ConservationStatusUpdate] = None

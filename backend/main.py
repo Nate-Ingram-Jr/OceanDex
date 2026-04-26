@@ -56,22 +56,67 @@ def get_creature(creature_id: int, db: Session = Depends(get_db)):
 
 @app.post("/creatures", response_model=schemas.SeaCreatureDetail, status_code=201)
 def create_creature(body: schemas.SeaCreatureCreate, db: Session = Depends(get_db)):
-        creature = models.SeaCreature(**body.model_dump())
-        db.add(creature)
-        db.commit()
-        db.refresh(creature)
-        return creature
+    conservation_data = body.conservation
+    creature = models.SeaCreature(**body.model_dump(exclude={"conservation"}))
+    db.add(creature)
+    db.flush()
+    if conservation_data:
+        db.add(models.ConservationStatus(
+            creature_id=creature.id,
+            **conservation_data.model_dump(),
+        ))
+    db.commit()
+    db.refresh(creature)
+    return creature
+
 
 @app.patch("/creatures/{creature_id}", response_model=schemas.SeaCreatureDetail)
 def update_creature(creature_id: int, body: schemas.SeaCreatureUpdate, db: Session = Depends(get_db)):
     creature = db.query(models.SeaCreature).filter(models.SeaCreature.id == creature_id).first()
     if not creature:
         raise HTTPException(status_code=404, detail="Species not found")
-    for field, value in body.model_dump(exclude_unset=True).items():
+    for field, value in body.model_dump(exclude_unset=True, exclude={"conservation"}).items():
         setattr(creature, field, value)
+    if body.conservation is not None:
+        if creature.conservation:
+            for field, value in body.conservation.model_dump(exclude_unset=True).items():
+                setattr(creature.conservation, field, value)
+        else:
+            db.add(models.ConservationStatus(
+                creature_id=creature.id,
+                **body.conservation.model_dump(exclude_unset=True),
+            ))
     db.commit()
     db.refresh(creature)
     return creature
+
+
+@app.post("/creatures/{creature_id}/conservation", response_model=schemas.ConservationStatusOut, status_code=201)
+def create_conservation(creature_id: int, body: schemas.ConservationStatusCreate, db: Session = Depends(get_db)):
+    creature = db.query(models.SeaCreature).filter(models.SeaCreature.id == creature_id).first()
+    if not creature:
+        raise HTTPException(status_code=404, detail="Species not found")
+    if creature.conservation:
+        raise HTTPException(status_code=409, detail="Conservation record already exists — use PATCH to update")
+    conservation = models.ConservationStatus(creature_id=creature_id, **body.model_dump())
+    db.add(conservation)
+    db.commit()
+    db.refresh(conservation)
+    return conservation
+
+
+@app.patch("/creatures/{creature_id}/conservation", response_model=schemas.ConservationStatusOut)
+def update_conservation(creature_id: int, body: schemas.ConservationStatusUpdate, db: Session = Depends(get_db)):
+    creature = db.query(models.SeaCreature).filter(models.SeaCreature.id == creature_id).first()
+    if not creature:
+        raise HTTPException(status_code=404, detail="Species not found")
+    if not creature.conservation:
+        raise HTTPException(status_code=404, detail="No conservation record — use POST to create one")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(creature.conservation, field, value)
+    db.commit()
+    db.refresh(creature.conservation)
+    return creature.conservation
 
 @app.get("/creatures/{creature_id}/related", response_model=List[schemas.SeaCreatureSummary])
 def related_creatures(creature_id: int, db: Session = Depends(get_db)):
