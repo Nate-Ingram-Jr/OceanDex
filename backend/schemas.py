@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, List, Any
+from datetime import datetime
 
 
 class ProtectedStatsOut(BaseModel):
@@ -196,3 +197,46 @@ class SeaCreatureUpdate(BaseModel):
     legal_notice: Optional[str] = None
     encounter_tip: Optional[str] = None
     conservation: Optional[ConservationStatusUpdate] = None
+
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+class UserRegister(BaseModel):
+    email: str
+    username: str
+    password: str
+
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    username: str
+    role: str
+
+    class Config:
+        from_attributes = True
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    user: UserOut
+
+
+# ── Submissions ───────────────────────────────────────────────────────────────
+
+class SubmissionOut(BaseModel):
+    id: int
+    status: str
+    review_note: Optional[str]
+    creature_data: dict
+    created_at: datetime
+    reviewed_at: Optional[datetime]
+    submitter: UserOut
+
+    class Config:
+        from_attributes = True

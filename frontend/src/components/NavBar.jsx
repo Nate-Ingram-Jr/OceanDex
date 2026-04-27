@@ -1,12 +1,15 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { useAuth } from '../context/AuthContext'
 
 export default function NavBar() {
   const [facts, setFacts] = useState([])
   const [index, setIndex] = useState(0)
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
 
   useEffect(() => {
-    fetch('http://localhost:8000/conservation-facts')
+    fetch('/api/conservation-facts')
       .then(r => r.json())
       .then(setFacts)
       .catch(() => {})
@@ -24,6 +27,7 @@ export default function NavBar() {
         <NavLink to="/" className="navbar-logo">OceanDex</NavLink>
         <span className="navbar-subtitle">/ Sea Life Encyclopedia</span>
       </div>
+
       <div className="navbar-links">
         <NavLink to="/" end className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
           Explore
@@ -37,7 +41,29 @@ export default function NavBar() {
         <NavLink to="/id-scanner" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
           ID Scanner
         </NavLink>
+        {user && (
+          <NavLink to="/submit" className={({ isActive }) => 'nav-link nav-link-accent' + (isActive ? ' active' : '')}>
+            + Submit Species
+          </NavLink>
+        )}
+        {user?.role === 'admin' && (
+          <NavLink to="/admin" className={({ isActive }) => 'nav-link nav-link-admin' + (isActive ? ' active' : '')}>
+            Admin
+          </NavLink>
+        )}
       </div>
+
+      <div className="navbar-user">
+        {user ? (
+          <>
+            <span className="nav-username">{user.username}</span>
+            <button className="nav-logout" onClick={() => { logout(); navigate('/') }}>Sign out</button>
+          </>
+        ) : (
+          <button className="nav-logout" onClick={() => navigate('/login')}>Sign in</button>
+        )}
+      </div>
+
       {facts.length > 0 && (
         <div className={`navbar-alert ${facts[index].sentiment}`}>
           <span className="alert-dot" />

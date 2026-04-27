@@ -2,8 +2,10 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
+from datetime import datetime
 import models
 import schemas
+import auth
 from database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
@@ -280,6 +282,135 @@ def protected_list(
     if category:
         query = query.filter(models.SeaCreature.category == category)
     return query.order_by(models.SeaCreature.common_name).all()
+
+# ── Auth ─────────────────────────────────────────────────────────────────────
+
+@app.post("/auth/register", response_model=schemas.TokenOut, status_code=201)
+def register(body: schemas.UserRegister, db: Session = Depends(get_db)):
+    if db.query(models.User).filter(models.User.email == body.email).first():
+        raise HTTPException(status_code=409, detail="Email already registered")
+    if db.query(models.User).filter(models.User.username == body.username).first():
+        raise HTTPException(status_code=409, detail="Username already taken")
+    user = models.User(
+        email=body.email,
+        username=body.username,
+        password_hash=auth.hash_password(body.password),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"access_token": auth.create_token(user.id), "user": user}
+
+
+@app.post("/auth/login", response_model=schemas.TokenOut)
+def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == body.email).first()
+    if not user or not auth.verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    return {"access_token": auth.create_token(user.id), "user": user}
+
+
+@app.get("/auth/me", response_model=schemas.UserOut)
+def me(current_user: models.User = Depends(auth.get_current_user)):
+    return current_user
+
+
+# ── Submissions ───────────────────────────────────────────────────────────────
+
+@app.post("/submissions", response_model=schemas.SubmissionOut, status_code=201)
+def create_submission(
+    body: schemas.SeaCreatureCreate,
+    user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    submission = models.CreatureSubmission(
+        submitted_by=user.id,
+        creature_data=body.model_dump(),
+    )
+    db.add(submission)
+    db.commit()
+    db.refresh(submission)
+    return submission
+
+
+@app.get("/submissions", response_model=List[schemas.SubmissionOut])
+def list_submissions(
+    status: Optional[str] = Query(None),
+    user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.CreatureSubmission)
+    if user.role != "admin":
+        query = query.filter(models.CreatureSubmission.submitted_by == user.id)
+    if status:
+        query = query.filter(models.CreatureSubmission.status == status)
+    return query.order_by(models.CreatureSubmission.created_at.desc()).all()
+
+
+@app.get("/submissions/{sub_id}", response_model=schemas.SubmissionOut)
+def get_submission(
+    sub_id: int,
+    user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    sub = db.query(models.CreatureSubmission).filter(models.CreatureSubmission.id == sub_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if user.role != "admin" and sub.submitted_by != user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return sub
+
+
+@app.post("/submissions/{sub_id}/approve", response_model=schemas.SeaCreatureDetail)
+def approve_submission(
+    sub_id: int,
+    admin: models.User = Depends(auth.require_admin),
+    db: Session = Depends(get_db),
+):
+    sub = db.query(models.CreatureSubmission).filter(models.CreatureSubmission.id == sub_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if sub.status != "pending":
+        raise HTTPException(status_code=409, detail=f"Submission is already {sub.status}")
+
+    creature_data = schemas.SeaCreatureCreate(**sub.creature_data)
+    conservation_data = creature_data.conservation
+    creature = models.SeaCreature(**creature_data.model_dump(exclude={"conservation"}))
+    db.add(creature)
+    db.flush()
+    if conservation_data:
+        db.add(models.ConservationStatus(
+            creature_id=creature.id,
+            **conservation_data.model_dump(),
+        ))
+
+    sub.status = "approved"
+    sub.reviewed_by = admin.id
+    sub.reviewed_at = datetime.utcnow()
+    db.commit()
+    db.refresh(creature)
+    return creature
+
+
+@app.post("/submissions/{sub_id}/reject", status_code=200)
+def reject_submission(
+    sub_id: int,
+    note: Optional[str] = Query(None),
+    admin: models.User = Depends(auth.require_admin),
+    db: Session = Depends(get_db),
+):
+    sub = db.query(models.CreatureSubmission).filter(models.CreatureSubmission.id == sub_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if sub.status != "pending":
+        raise HTTPException(status_code=409, detail=f"Submission is already {sub.status}")
+    sub.status = "rejected"
+    sub.review_note = note
+    sub.reviewed_by = admin.id
+    sub.reviewed_at = datetime.utcnow()
+    db.commit()
+    return {"detail": "Submission rejected"}
+
 
     # --- iNaturalist implementation (requires account 2+ months old with 10+ IDs) ---
     # @app.post("/scan", response_model=schemas.ScanResult)

@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, Text, JSON
+from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, Text, JSON, DateTime
 from sqlalchemy.orm import relationship
+from datetime import datetime
 from database import Base
 
 
@@ -83,6 +84,39 @@ class RegionCreature(Base):
 
     region = relationship("Region", back_populates="creature_associations")
     creature = relationship("SeaCreature", back_populates="region_associations")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    role = Column(String, default="user")  # "user" | "admin"
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    submissions = relationship(
+        "CreatureSubmission",
+        foreign_keys="CreatureSubmission.submitted_by",
+        back_populates="submitter",
+    )
+
+
+class CreatureSubmission(Base):
+    __tablename__ = "creature_submissions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    submitted_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String, default="pending")  # pending | approved | rejected
+    review_note = Column(Text, nullable=True)
+    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    creature_data = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    reviewed_at = Column(DateTime, nullable=True)
+
+    submitter = relationship("User", foreign_keys=[submitted_by], back_populates="submissions")
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
 
 
 class LegalRegulation(Base):
