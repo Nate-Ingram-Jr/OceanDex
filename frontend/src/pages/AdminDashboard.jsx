@@ -11,6 +11,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState('pending')
   const [submissions, setSubmissions] = useState([])
   const [verifications, setVerifications] = useState([])
+  const [applications, setApplications] = useState([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(null)
   const [rejectNote, setRejectNote] = useState('')
@@ -33,10 +34,19 @@ export default function AdminDashboard() {
     setLoading(false)
   }, [user])
 
+  const loadApplications = useCallback(async () => {
+    if (!user || user.role !== 'admin') return
+    setLoading(true)
+    const r = await fetch('/api/admin-applications?status=pending', { headers: authHeaders() })
+    if (r.ok) setApplications(await r.json())
+    setLoading(false)
+  }, [user])
+
   useEffect(() => {
     if (tab === 'verifications') loadVerifications()
+    else if (tab === 'applications') loadApplications()
     else loadSubmissions(tab)
-  }, [tab, loadSubmissions, loadVerifications])
+  }, [tab, loadSubmissions, loadVerifications, loadApplications])
 
   if (!user) {
     return (
@@ -88,6 +98,23 @@ export default function AdminDashboard() {
     loadVerifications()
   }
 
+  async function approveApplication(id) {
+    setActionLoading(true)
+    await fetch(`/api/admin-applications/${id}/approve`, { method: 'POST', headers: authHeaders() })
+    setActionLoading(false)
+    loadApplications()
+  }
+
+  async function rejectApplication(id, note) {
+    setActionLoading(true)
+    const url = `/api/admin-applications/${id}/reject${note ? `?note=${encodeURIComponent(note)}` : ''}`
+    await fetch(url, { method: 'POST', headers: authHeaders() })
+    setActionLoading(false)
+    setRejectTarget(null)
+    setRejectNote('')
+    loadApplications()
+  }
+
   const pendingCount = submissions.filter(s => s.status === 'pending').length
 
   return (
@@ -102,6 +129,9 @@ export default function AdminDashboard() {
         )}
         {tab === 'verifications' && verifications.length > 0 && (
           <span className="admin-badge">{verifications.length} pending</span>
+        )}
+        {tab === 'applications' && applications.length > 0 && (
+          <span className="admin-badge">{applications.length} pending</span>
         )}
       </div>
 
@@ -121,9 +151,77 @@ export default function AdminDashboard() {
         >
           Verifications
         </button>
+        <button
+          className={`admin-tab ${tab === 'applications' ? 'active' : ''}`}
+          onClick={() => { setTab('applications'); setExpanded(null) }}
+        >
+          Applications
+        </button>
       </div>
 
-      {tab === 'verifications' ? (
+      {tab === 'applications' ? (
+        loading ? (
+          <p className="admin-empty">Loading…</p>
+        ) : applications.length === 0 ? (
+          <p className="admin-empty">No pending admin applications.</p>
+        ) : (
+          <div className="admin-list">
+            {applications.map(app => (
+              <div key={app.id} className="admin-card open">
+                <div className="admin-card-body" style={{ paddingTop: 16 }}>
+                  <div className="admin-detail-grid">
+                    <Field label="Username" value={app.applicant.username} />
+                    <Field label="Email"    value={app.applicant.email} />
+                    <Field label="User type" value={app.applicant.user_type} />
+                    <Field label="Applied"  value={new Date(app.created_at).toLocaleDateString()} />
+                  </div>
+
+                  <div className="admin-detail-block">
+                    <span className="admin-field-label">Motivation</span>
+                    <p className="admin-field-text">{app.motivation}</p>
+                  </div>
+
+                  {app.experience && (
+                    <div className="admin-detail-block">
+                      <span className="admin-field-label">Background / Experience</span>
+                      <p className="admin-field-text">{app.experience}</p>
+                    </div>
+                  )}
+
+                  {rejectTarget === app.id ? (
+                    <div className="admin-reject-box">
+                      <textarea
+                        className="submit-textarea"
+                        placeholder="Reason for rejection (optional)"
+                        value={rejectNote}
+                        onChange={e => setRejectNote(e.target.value)}
+                        rows={2}
+                      />
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button className="btn-danger" disabled={actionLoading} onClick={() => rejectApplication(app.id, rejectNote)}>
+                          Confirm Reject
+                        </button>
+                        <button className="btn-secondary" onClick={() => { setRejectTarget(null); setRejectNote('') }}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="admin-actions">
+                      <button className="btn-approve" disabled={actionLoading} onClick={() => approveApplication(app.id)}>
+                        Approve — Grant Admin
+                      </button>
+                      <button className="btn-danger" disabled={actionLoading} onClick={() => setRejectTarget(app.id)}>
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : tab === 'verifications' ? (
         loading ? (
           <p className="admin-empty">Loading…</p>
         ) : verifications.length === 0 ? (

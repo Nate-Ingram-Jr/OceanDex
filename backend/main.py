@@ -389,6 +389,104 @@ def reject_mb(
     return {"detail": "Rejected"}
 
 
+# ── Admin Applications ────────────────────────────────────────────────────────
+
+@app.post("/admin-applications", response_model=schemas.AdminApplicationOut, status_code=201)
+def submit_admin_application(
+    body: schemas.AdminApplicationCreate,
+    user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    if user.role == "admin":
+        raise HTTPException(status_code=409, detail="You are already an admin")
+    existing = (
+        db.query(models.AdminApplication)
+        .filter(models.AdminApplication.user_id == user.id, models.AdminApplication.status == "pending")
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="You already have a pending application")
+    if not body.motivation.strip():
+        raise HTTPException(status_code=422, detail="Motivation is required")
+    app_obj = models.AdminApplication(
+        user_id=user.id,
+        motivation=body.motivation.strip(),
+        experience=body.experience.strip() if body.experience else None,
+    )
+    db.add(app_obj)
+    db.commit()
+    db.refresh(app_obj)
+    return app_obj
+
+
+@app.get("/admin-applications/my", response_model=Optional[schemas.AdminApplicationOut])
+def my_admin_application(
+    user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    return (
+        db.query(models.AdminApplication)
+        .filter(models.AdminApplication.user_id == user.id)
+        .order_by(models.AdminApplication.created_at.desc())
+        .first()
+    )
+
+
+@app.get("/admin-applications", response_model=List[schemas.AdminApplicationOut])
+def list_admin_applications(
+    status: Optional[str] = Query(None),
+    admin: models.User = Depends(auth.require_admin),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.AdminApplication)
+    if status:
+        query = query.filter(models.AdminApplication.status == status)
+    return query.order_by(models.AdminApplication.created_at.desc()).all()
+
+
+@app.post("/admin-applications/{app_id}/approve", response_model=schemas.AdminApplicationOut)
+def approve_admin_application(
+    app_id: int,
+    admin: models.User = Depends(auth.require_admin),
+    db: Session = Depends(get_db),
+):
+    app_obj = db.query(models.AdminApplication).filter(models.AdminApplication.id == app_id).first()
+    if not app_obj:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if app_obj.status != "pending":
+        raise HTTPException(status_code=409, detail=f"Application is already {app_obj.status}")
+    app_obj.status = "approved"
+    app_obj.reviewed_by = admin.id
+    app_obj.reviewed_at = datetime.utcnow()
+    applicant = db.query(models.User).filter(models.User.id == app_obj.user_id).first()
+    if applicant:
+        applicant.role = "admin"
+    db.commit()
+    db.refresh(app_obj)
+    return app_obj
+
+
+@app.post("/admin-applications/{app_id}/reject", response_model=schemas.AdminApplicationOut)
+def reject_admin_application(
+    app_id: int,
+    note: Optional[str] = Query(None),
+    admin: models.User = Depends(auth.require_admin),
+    db: Session = Depends(get_db),
+):
+    app_obj = db.query(models.AdminApplication).filter(models.AdminApplication.id == app_id).first()
+    if not app_obj:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if app_obj.status != "pending":
+        raise HTTPException(status_code=409, detail=f"Application is already {app_obj.status}")
+    app_obj.status = "rejected"
+    app_obj.review_note = note
+    app_obj.reviewed_by = admin.id
+    app_obj.reviewed_at = datetime.utcnow()
+    db.commit()
+    db.refresh(app_obj)
+    return app_obj
+
+
 # ── Submissions ───────────────────────────────────────────────────────────────
 
 @app.post("/submissions", response_model=schemas.SubmissionOut, status_code=201)

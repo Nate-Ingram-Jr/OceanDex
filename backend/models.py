@@ -122,6 +122,23 @@ class CreatureSubmission(Base):
     reviewer = relationship("User", foreign_keys=[reviewed_by])
 
 
+class AdminApplication(Base):
+    __tablename__ = "admin_applications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    motivation = Column(Text, nullable=False)
+    experience = Column(Text, nullable=True)
+    status = Column(String, default="pending")  # pending | approved | rejected
+    review_note = Column(Text, nullable=True)
+    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    reviewed_at = Column(DateTime, nullable=True)
+
+    applicant = relationship("User", foreign_keys=[user_id])
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
+
+
 class LegalRegulation(Base):
     __tablename__ = "legal_regulations"
 

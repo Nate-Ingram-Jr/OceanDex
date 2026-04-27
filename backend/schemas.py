@@ -239,6 +239,27 @@ class UserSettingsUpdate(BaseModel):
     new_password: Optional[str] = Field(None, min_length=8, max_length=72)
 
 
+# ── Admin Applications ────────────────────────────────────────────────────────
+
+class AdminApplicationCreate(BaseModel):
+    motivation: str
+    experience: Optional[str] = None
+
+
+class AdminApplicationOut(BaseModel):
+    id: int
+    status: str
+    review_note: Optional[str]
+    motivation: str
+    experience: Optional[str]
+    created_at: datetime
+    reviewed_at: Optional[datetime]
+    applicant: UserOut
+
+    class Config:
+        from_attributes = True
+
+
 # ── Submissions ───────────────────────────────────────────────────────────────
 
 class SubmissionOut(BaseModel):
