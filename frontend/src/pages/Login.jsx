@@ -27,7 +27,13 @@ export default function Login() {
         body: JSON.stringify(body),
       })
       const data = await r.json()
-      if (!r.ok) { setError(data.detail || 'Something went wrong'); return }
+      if (!r.ok) {
+        const detail = Array.isArray(data.detail)
+          ? data.detail.map(e => e.msg).join(', ')
+          : (data.detail || 'Something went wrong')
+        setError(detail)
+        return
+      }
       login(data.access_token, data.user)
       navigate('/')
     } catch {
@@ -65,8 +71,9 @@ export default function Login() {
             </label>
           )}
 
-          <label className="auth-label">Password
-            <input className="auth-input" type="password" value={form.password} onChange={set('password')} required />
+          <label className="auth-label">Password {mode === 'register' && <span style={{ color: '#475569', fontWeight: 400 }}>(min 8 characters)</span>}
+            <input className="auth-input" type="password" value={form.password} onChange={set('password')}
+              required minLength={mode === 'register' ? 8 : undefined} maxLength={72} />
           </label>
 
           {error && <p className="auth-error">{error}</p>}
