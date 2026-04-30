@@ -348,6 +348,15 @@ def update_settings(
     return user
 
 
+@app.delete("/auth/me", status_code=204)
+def delete_account(
+    user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    db.delete(user)
+    db.commit()
+
+
 @app.get("/admin/mb-requests", response_model=List[schemas.UserOut])
 def list_mb_requests(
     admin: models.User = Depends(auth.require_admin),

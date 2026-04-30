@@ -1557,6 +1557,22 @@ a { text-decoration: none; color: inherit; }
 .btn-primary:hover:not(:disabled) { background: #38bdf8; }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.btn-danger {
+  padding: 9px 20px;
+  border-radius: 8px;
+  border: none;
+  background: #ef4444;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background 0.15s;
+}
+.btn-danger:hover:not(:disabled) { background: #f87171; }
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.settings-danger-zone { border-color: rgba(239,68,68,0.3); }
+
 .btn-secondary {
   padding: 9px 20px;
   border-radius: 8px;

@@ -21,7 +21,7 @@ const APP_STATUS = {
 }
 
 export default function Settings() {
-  const { user, updateUser } = useAuth()
+  const { user, updateUser, logout } = useAuth()
   const navigate = useNavigate()
 
   // Role section
@@ -36,6 +36,11 @@ export default function Settings() {
   const [confirmPw, setConfirmPw]   = useState('')
   const [pwMsg, setPwMsg]           = useState('')
   const [pwSaving, setPwSaving]     = useState(false)
+
+  // Delete account section
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [deleteMsg, setDeleteMsg]         = useState('')
+  const [deleting, setDeleting]           = useState(false)
 
   // Admin application section
   const [application, setApplication]     = useState(undefined)  // undefined = loading
@@ -134,6 +139,19 @@ export default function Settings() {
       setAppMotivation('')
       setAppExperience('')
       setAppMsg('Application submitted! An admin will review it soon.')
+    }
+  }
+
+  async function deleteAccount() {
+    setDeleteMsg('')
+    setDeleting(true)
+    const r = await fetch('/api/auth/me', { method: 'DELETE', headers: authHeaders() })
+    setDeleting(false)
+    if (!r.ok) {
+      setDeleteMsg('Something went wrong. Please try again.')
+    } else {
+      logout()
+      navigate('/login')
     }
   }
 
@@ -346,6 +364,31 @@ export default function Settings() {
             )}
           </div>
         )}
+        {/* Danger Zone */}
+        <div className="settings-section settings-danger-zone">
+          <p className="settings-section-title" style={{ color: '#ef4444' }}>Danger Zone</p>
+          {!deleteConfirm ? (
+            <>
+              <p className="settings-note" style={{ marginBottom: 12 }}>Permanently delete your account and all associated data. This cannot be undone.</p>
+              <button className="btn-danger" onClick={() => setDeleteConfirm(true)}>
+                Delete Account
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="settings-note settings-note-warn">Are you sure? This will permanently delete your account.</p>
+              {deleteMsg && <p className="settings-msg" style={{ color: '#ef4444' }}>{deleteMsg}</p>}
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <button className="btn-danger" onClick={deleteAccount} disabled={deleting}>
+                  {deleting ? 'Deleting…' : 'Yes, delete my account'}
+                </button>
+                <button className="btn-secondary" onClick={() => setDeleteConfirm(false)} disabled={deleting}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
