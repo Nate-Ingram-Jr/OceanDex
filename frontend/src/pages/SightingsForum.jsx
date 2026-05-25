@@ -251,7 +251,7 @@ export default function SightingsForum() {
                       <span className="sighting-date">{new Date(item.created_at).toLocaleString()}</span>
                     </div>
 
-                    {user && item.user_id === user.id && (
+                    {user && (item.user_id === user.id || user.role === 'admin') && (
                       <div className="sighting-owner-actions">
                         <button
                           className="btn-secondary sighting-action-btn"

@@ -730,7 +730,9 @@ def update_sighting(
     if not sighting:
         raise HTTPException(status_code=404, detail="Sighting not found")
 
-    if cast(Optional[int], sighting.user_id) != cast(int, user.id):
+    is_owner = cast(Optional[int], sighting.user_id) == cast(int, user.id)
+    is_admin = cast(str, user.role) == "admin"
+    if not is_owner and not is_admin:
         raise HTTPException(status_code=403, detail="Only the post owner can edit this sighting")
 
     data = body.model_dump(exclude_unset=True)
@@ -760,7 +762,9 @@ def delete_sighting(
     if not sighting:
         raise HTTPException(status_code=404, detail="Sighting not found")
 
-    if cast(Optional[int], sighting.user_id) != cast(int, user.id):
+    is_owner = cast(Optional[int], sighting.user_id) == cast(int, user.id)
+    is_admin = cast(str, user.role) == "admin"
+    if not is_owner and not is_admin:
         raise HTTPException(status_code=403, detail="Only the post owner can delete this sighting")
 
     path = Path(cast(str, sighting.image_path))
