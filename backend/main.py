@@ -2,9 +2,8 @@ from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Fo
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
-from typing import List, Optional
+from typing import List, Optional, cast
 from datetime import datetime
-import os
 from pathlib import Path
 import shutil
 import uuid
@@ -211,14 +210,20 @@ def _sighting_image_url(sighting_id: int) -> str:
 
 
 def _sighting_to_out(sighting: models.CreatureSighting) -> schemas.CreatureSightingOut:
+    sighting_id = cast(int, sighting.id)
+    caption = cast(Optional[str], sighting.caption)
+    tag = cast(str, sighting.tag)
+    created_at = cast(datetime, sighting.created_at)
+    user_id = cast(Optional[int], sighting.user_id)
+    username = cast(Optional[str], sighting.username_snapshot)
     return schemas.CreatureSightingOut(
-        id=sighting.id,
-        caption=sighting.caption,
-        tag=sighting.tag,
-        created_at=sighting.created_at,
-        user_id=sighting.user_id,
-        username=sighting.username_snapshot,
-        image_url=_sighting_image_url(sighting.id),
+        id=sighting_id,
+        caption=caption,
+        tag=tag,
+        created_at=created_at,
+        user_id=user_id,
+        username=username,
+        image_url=_sighting_image_url(sighting_id),
     )
 
 
@@ -696,7 +701,7 @@ def get_sighting_image(sighting_id: int, db: Session = Depends(get_db)):
     if not sighting:
         raise HTTPException(status_code=404, detail="Sighting not found")
 
-    path = Path(sighting.image_path)
+    path = Path(cast(str, sighting.image_path))
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
 

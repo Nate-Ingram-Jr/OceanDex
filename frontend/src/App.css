@@ -1745,6 +1745,130 @@ a { text-decoration: none; color: inherit; }
 .admin-actions { display: flex; gap: 10px; margin-top: 4px; }
 .admin-reject-box { background: #0a1628; border-radius: 8px; padding: 12px; }
 
+/* ── Sightings forum ─────────────────────────────────── */
+
+.sightings-page {
+  flex: 1;
+  overflow: hidden;
+  padding: 20px;
+}
+
+.sightings-layout {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+}
+
+.sightings-post-panel,
+.sightings-feed-panel {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+}
+
+.sightings-post-panel {
+  padding: 18px;
+  overflow-y: auto;
+}
+
+.sightings-post-panel h2 {
+  font-size: 1.3rem;
+  margin-bottom: 4px;
+}
+
+.sightings-post-panel p {
+  color: #64748b;
+  margin-bottom: 14px;
+}
+
+.sightings-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.sightings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sightings-feed-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sightings-feed-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sightings-feed-header h3 {
+  font-size: 1.1rem;
+}
+
+.sightings-filter-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sightings-grid {
+  padding: 16px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.sighting-card {
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0a1628;
+}
+
+.sighting-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  display: block;
+}
+
+.sighting-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 10px 12px 4px;
+  font-size: 0.8rem;
+}
+
+.sighting-tag {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: #5bc8f5;
+}
+
+.sighting-author { color: #94a3b8; }
+
+.sighting-date { color: #64748b; }
+
+.sighting-caption {
+  padding: 0 12px 12px;
+  color: #cbd5e1;
+  line-height: 1.45;
+  font-size: 0.95rem;
+}
+
 /* ── Mobile (≤ 768px) ────────────────────────────────── */
 
 @media (max-width: 768px) {
@@ -1966,6 +2090,29 @@ a { text-decoration: none; color: inherit; }
 
   .submit-page { padding: 16px; }
   .submit-grid { grid-template-columns: 1fr; }
+
+  /* Sightings */
+
+  .sightings-page {
+    padding: 16px;
+    overflow-y: auto;
+  }
+
+  .sightings-layout {
+    height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .sightings-post-panel,
+  .sightings-feed-panel {
+    overflow: visible;
+  }
+
+  .sightings-grid {
+    overflow: visible;
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
 
   /* Admin */
 

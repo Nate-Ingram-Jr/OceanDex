@@ -50,6 +50,9 @@ export default function NavBar() {
           <NavLink to="/id-scanner" onClick={close} className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
             ID Scanner
           </NavLink>
+          <NavLink to="/sightings" onClick={close} className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
+            Sightings
+          </NavLink>
           {user && (
             <NavLink to="/submit" onClick={close} className={({ isActive }) => 'nav-link nav-link-accent' + (isActive ? ' active' : '')}>
               + Submit
