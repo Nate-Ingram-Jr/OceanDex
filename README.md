@@ -24,3 +24,6 @@ Python and FastAPI
 CSS & JavaScript
 PostgreSQL
 
+# Roadmap
+See [ROADMAP.md](ROADMAP.md) for the prioritized plan for upcoming OceanDex features.
+
