@@ -17,6 +17,11 @@ export default function SightingsForum() {
   const [image, setImage] = useState(null)
   const [posting, setPosting] = useState(false)
   const [postError, setPostError] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editTag, setEditTag] = useState('fish')
+  const [editCaption, setEditCaption] = useState('')
+  const [editError, setEditError] = useState('')
+  const [actionLoadingId, setActionLoadingId] = useState(null)
 
   async function loadSightings(tagFilter = selectedTag) {
     setLoading(true)
@@ -85,6 +90,73 @@ export default function SightingsForum() {
       setPostError('Could not reach server')
     } finally {
       setPosting(false)
+    }
+  }
+
+  function startEdit(item) {
+    setEditingId(item.id)
+    setEditTag(item.tag)
+    setEditCaption(item.caption || '')
+    setEditError('')
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditTag('fish')
+    setEditCaption('')
+    setEditError('')
+  }
+
+  async function saveEdit(itemId) {
+    setActionLoadingId(itemId)
+    setEditError('')
+    try {
+      const r = await fetch(`/api/sightings/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ tag: editTag, caption: editCaption }),
+      })
+      const data = await r.json()
+      if (!r.ok) {
+        setEditError(data.detail || 'Could not update post')
+        return
+      }
+      setSightings((prev) => prev.map((s) => (s.id === itemId ? data : s)))
+      cancelEdit()
+    } catch {
+      setEditError('Could not reach server')
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  async function deletePost(itemId) {
+    const confirmed = window.confirm('Delete this sighting post? This cannot be undone.')
+    if (!confirmed) return
+
+    setActionLoadingId(itemId)
+    try {
+      const r = await fetch(`/api/sightings/${itemId}`, {
+        method: 'DELETE',
+        headers: { ...authHeaders() },
+      })
+      if (!r.ok && r.status !== 204) {
+        let detail = 'Could not delete post'
+        try {
+          const data = await r.json()
+          detail = data.detail || detail
+        } catch {
+          // no-op
+        }
+        setError(detail)
+        return
+      }
+      setSightings((prev) => prev.filter((s) => s.id !== itemId))
+      if (editingId === itemId) cancelEdit()
+    } catch {
+      setError('Could not reach server')
+    } finally {
+      setActionLoadingId(null)
     }
   }
 
@@ -178,7 +250,61 @@ export default function SightingsForum() {
                       <span className="sighting-author">by {item.username || 'OceanDex user'}</span>
                       <span className="sighting-date">{new Date(item.created_at).toLocaleString()}</span>
                     </div>
-                    {item.caption && <p className="sighting-caption">{item.caption}</p>}
+
+                    {user && item.user_id === user.id && (
+                      <div className="sighting-owner-actions">
+                        <button
+                          className="btn-secondary sighting-action-btn"
+                          onClick={() => startEdit(item)}
+                          disabled={actionLoadingId === item.id}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="btn-danger sighting-action-btn"
+                          onClick={() => deletePost(item.id)}
+                          disabled={actionLoadingId === item.id}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+
+                    {editingId === item.id ? (
+                      <div className="sighting-edit-form">
+                        <label className="submit-label">Tag
+                          <select className="submit-input" value={editTag} onChange={(e) => setEditTag(e.target.value)}>
+                            {TAGS.map((t) => (
+                              <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="submit-label">Caption (optional)
+                          <textarea
+                            className="submit-textarea"
+                            rows={2}
+                            value={editCaption}
+                            onChange={(e) => setEditCaption(e.target.value)}
+                          />
+                        </label>
+
+                        {editError && <p className="auth-error">{editError}</p>}
+
+                        <div className="sighting-edit-actions">
+                          <button
+                            className="btn-primary sighting-action-btn"
+                            onClick={() => saveEdit(item.id)}
+                            disabled={actionLoadingId === item.id}
+                          >
+                            Save
+                          </button>
+                          <button className="btn-secondary sighting-action-btn" onClick={cancelEdit}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      item.caption && <p className="sighting-caption">{item.caption}</p>
+                    )}
                   </article>
                 ))
               )}

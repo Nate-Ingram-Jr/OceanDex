@@ -719,6 +719,61 @@ def get_sighting_image(sighting_id: int, db: Session = Depends(get_db)):
     return FileResponse(path=str(path), media_type=media_type)
 
 
+@app.patch("/sightings/{sighting_id}", response_model=schemas.CreatureSightingOut)
+def update_sighting(
+    sighting_id: int,
+    body: schemas.CreatureSightingUpdate,
+    user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    sighting = db.query(models.CreatureSighting).filter(models.CreatureSighting.id == sighting_id).first()
+    if not sighting:
+        raise HTTPException(status_code=404, detail="Sighting not found")
+
+    if cast(Optional[int], sighting.user_id) != cast(int, user.id):
+        raise HTTPException(status_code=403, detail="Only the post owner can edit this sighting")
+
+    data = body.model_dump(exclude_unset=True)
+    if "tag" in data:
+        normalized_tag = cast(str, data["tag"]).lower().strip()
+        if normalized_tag not in SIGHTING_TAGS:
+            raise HTTPException(status_code=422, detail="Tag must be fish, shark, shellfish, or ray")
+        setattr(sighting, "tag", normalized_tag)
+
+    if "caption" in data:
+        caption_value = data["caption"]
+        normalized_caption = caption_value.strip() if isinstance(caption_value, str) and caption_value.strip() else None
+        setattr(sighting, "caption", normalized_caption)
+
+    db.commit()
+    db.refresh(sighting)
+    return _sighting_to_out(sighting)
+
+
+@app.delete("/sightings/{sighting_id}", status_code=204)
+def delete_sighting(
+    sighting_id: int,
+    user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    sighting = db.query(models.CreatureSighting).filter(models.CreatureSighting.id == sighting_id).first()
+    if not sighting:
+        raise HTTPException(status_code=404, detail="Sighting not found")
+
+    if cast(Optional[int], sighting.user_id) != cast(int, user.id):
+        raise HTTPException(status_code=403, detail="Only the post owner can delete this sighting")
+
+    path = Path(cast(str, sighting.image_path))
+    if path.exists() and path.is_file():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+    db.delete(sighting)
+    db.commit()
+
+
     # --- iNaturalist implementation (requires account 2+ months old with 10+ IDs) ---
     # @app.post("/scan", response_model=schemas.ScanResult)
     # async def scan_creature(image: UploadFile = File(...), db: Session = Depends(get_db)):

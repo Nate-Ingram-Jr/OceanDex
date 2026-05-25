@@ -285,3 +285,8 @@ class CreatureSightingOut(BaseModel):
     user_id: Optional[int]
     username: Optional[str]
     image_url: str
+
+
+class CreatureSightingUpdate(BaseModel):
+    caption: Optional[str] = None
+    tag: Optional[str] = None
