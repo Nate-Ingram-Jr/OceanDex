@@ -104,6 +104,7 @@ class User(Base):
         foreign_keys="CreatureSubmission.submitted_by",
         back_populates="submitter",
     )
+    sightings = relationship("CreatureSighting", back_populates="user")
 
 
 class CreatureSubmission(Base):
@@ -155,3 +156,17 @@ class LegalRegulation(Base):
 
     creature = relationship("SeaCreature", back_populates="regulations")
     state = relationship("State", back_populates="regulations")
+
+
+class CreatureSighting(Base):
+    __tablename__ = "creature_sightings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    username_snapshot = Column(String, nullable=True)
+    caption = Column(Text, nullable=True)
+    tag = Column(String, nullable=False)  # fish | shark | shellfish | ray
+    image_path = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="sightings")

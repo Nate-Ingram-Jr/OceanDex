@@ -7,3 +7,4 @@ pydantic
 requests
 bcrypt
 python-jose[cryptography]
+python-multipart

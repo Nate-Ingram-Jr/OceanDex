@@ -275,3 +275,13 @@ class SubmissionOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CreatureSightingOut(BaseModel):
+    id: int
+    caption: Optional[str]
+    tag: str
+    created_at: datetime
+    user_id: Optional[int]
+    username: Optional[str]
+    image_url: str

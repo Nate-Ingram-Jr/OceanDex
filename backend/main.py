@@ -1,8 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime
+import os
+from pathlib import Path
+import shutil
+import uuid
 import models
 import schemas
 import auth
@@ -11,6 +16,10 @@ from database import engine, get_db
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="OceanDex API")
+
+SIGHTING_TAGS = {"fish", "shark", "shellfish", "ray"}
+UPLOADS_ROOT = Path(__file__).resolve().parent / "uploads" / "sightings"
+UPLOADS_ROOT.mkdir(parents=True, exist_ok=True)
 
 app.add_middleware(
     CORSMiddleware,
@@ -196,6 +205,23 @@ def _first_sentence(text: str) -> str:
     return text[:120].rstrip() + ("…" if len(text) > 120 else "")
 
 
+def _sighting_image_url(sighting_id: int) -> str:
+    # Frontend uses /api proxy in dev, so return API-prefixed path.
+    return f"/api/sightings/{sighting_id}/image"
+
+
+def _sighting_to_out(sighting: models.CreatureSighting) -> schemas.CreatureSightingOut:
+    return schemas.CreatureSightingOut(
+        id=sighting.id,
+        caption=sighting.caption,
+        tag=sighting.tag,
+        created_at=sighting.created_at,
+        user_id=sighting.user_id,
+        username=sighting.username_snapshot,
+        image_url=_sighting_image_url(sighting.id),
+    )
+
+
 @app.get("/conservation-facts", response_model=List[schemas.ConservationFactOut])
 def conservation_facts(db: Session = Depends(get_db)):
     rows = (
@@ -355,10 +381,16 @@ def delete_account(
     db: Session = Depends(get_db),
 ):
     if keep_contributions:
+        db.query(models.CreatureSighting).filter(
+            models.CreatureSighting.user_id == user.id
+        ).update({"user_id": None, "username_snapshot": "Legacy Dex user"})
         db.query(models.CreatureSubmission).filter(
             models.CreatureSubmission.submitted_by == user.id
         ).update({"submitted_by": None, "submitter_name": "Legacy Dex user"})
     else:
+        db.query(models.CreatureSighting).filter(
+            models.CreatureSighting.user_id == user.id
+        ).delete()
         db.query(models.CreatureSubmission).filter(
             models.CreatureSubmission.submitted_by == user.id
         ).delete()
@@ -601,6 +633,85 @@ def reject_submission(
     sub.reviewed_at = datetime.utcnow()
     db.commit()
     return {"detail": "Submission rejected"}
+
+
+# ── Creature Sightings Forum ─────────────────────────────────────────────────
+
+@app.get("/sightings", response_model=List[schemas.CreatureSightingOut])
+def list_sightings(
+    tag: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.CreatureSighting)
+    if tag:
+        normalized = tag.lower().strip()
+        if normalized not in SIGHTING_TAGS:
+            raise HTTPException(status_code=422, detail="Invalid tag")
+        query = query.filter(models.CreatureSighting.tag == normalized)
+
+    sightings = query.order_by(models.CreatureSighting.created_at.desc()).limit(100).all()
+    return [_sighting_to_out(s) for s in sightings]
+
+
+@app.post("/sightings", response_model=schemas.CreatureSightingOut, status_code=201)
+async def create_sighting(
+    tag: str = Form(...),
+    caption: Optional[str] = Form(None),
+    image: UploadFile = File(...),
+    user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    normalized_tag = tag.lower().strip()
+    if normalized_tag not in SIGHTING_TAGS:
+        raise HTTPException(status_code=422, detail="Tag must be fish, shark, shellfish, or ray")
+
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=422, detail="Uploaded file must be an image")
+
+    extension = Path(image.filename or "").suffix.lower()
+    if extension not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        raise HTTPException(status_code=422, detail="Allowed image types: jpg, jpeg, png, webp, gif")
+
+    file_name = f"{uuid.uuid4().hex}{extension}"
+    image_path = UPLOADS_ROOT / file_name
+    with image_path.open("wb") as buffer:
+        shutil.copyfileobj(image.file, buffer)
+
+    sighting = models.CreatureSighting(
+        user_id=user.id,
+        username_snapshot=user.username,
+        caption=caption.strip() if caption else None,
+        tag=normalized_tag,
+        image_path=str(image_path),
+    )
+    db.add(sighting)
+    db.commit()
+    db.refresh(sighting)
+    return _sighting_to_out(sighting)
+
+
+@app.get("/sightings/{sighting_id}/image")
+def get_sighting_image(sighting_id: int, db: Session = Depends(get_db)):
+    sighting = db.query(models.CreatureSighting).filter(models.CreatureSighting.id == sighting_id).first()
+    if not sighting:
+        raise HTTPException(status_code=404, detail="Sighting not found")
+
+    path = Path(sighting.image_path)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    media_type = None
+    suffix = path.suffix.lower()
+    if suffix in {".jpg", ".jpeg"}:
+        media_type = "image/jpeg"
+    elif suffix == ".png":
+        media_type = "image/png"
+    elif suffix == ".webp":
+        media_type = "image/webp"
+    elif suffix == ".gif":
+        media_type = "image/gif"
+
+    return FileResponse(path=str(path), media_type=media_type)
 
 
     # --- iNaturalist implementation (requires account 2+ months old with 10+ IDs) ---
